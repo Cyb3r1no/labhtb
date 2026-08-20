@@ -36,27 +36,33 @@ Only the password prompt is hidden while typing.
 
 ## Fast-start behavior
 
-The first minutes of a fresh lab are optimized for useful facts, not exhaustive slow scans.
-
-Default discovery strategy:
+Fresh discovery should use the built-in helper:
 
 ```bash
-# 1) Fast all-port discovery
-nmap -Pn -n -p- --min-rate 3000 -T4 <TARGET> -oA scans/nmap-allports
-
-# 2) Targeted deep scan against confirmed open ports only
-nmap -Pn -n -sC -sV -p<OPEN_PORTS> -T4 <TARGET> -oA scans/nmap-services
+bash LabTools/fast-scan.sh <TARGET_IP> scans
 ```
 
-The copilot should then immediately:
+It performs:
 
-1. identify hostname/domain/FQDN/DC context,
-2. synchronize confirmed names into `/etc/hosts`,
-3. validate supplied credentials with standard tooling,
-4. begin protocol-specific enumeration,
-5. avoid repeating checks already completed.
+```text
+fast all-TCP-port discovery
+        ↓
+extract confirmed open ports
+        ↓
+targeted -sC -sV only against those ports
+        ↓
+-oA artifacts under scans/
+```
 
-It should **not** use `-p- -sC -sV` as the default initial Nmap scan.
+This avoids the slow default of combining `-p-` with `-sC -sV`.
+
+The copilot then immediately:
+
+1. identifies hostname/domain/FQDN/DC context,
+2. synchronizes confirmed names into `/etc/hosts`,
+3. validates supplied credentials with standard tooling,
+4. begins protocol-specific enumeration,
+5. avoids repeating checks already completed.
 
 ## `/etc/hosts` automation
 
@@ -68,9 +74,13 @@ If DOMAIN/HOSTNAME are supplied when the lab starts, `start.sh` creates an idemp
 10.10.11.X dc.authority.htb dc authority.htb # labhtb:authority
 ```
 
-Only the line marked for that lab is replaced on future runs, preventing duplicate labhtb mappings.
+If names are discovered later, the copilot uses:
 
-If names are initially `UNKNOWN`, the copilot is instructed to update `/etc/hosts` immediately after hostname/domain/FQDN is confirmed through scan, SMB, LDAP, Kerberos, DNS, or other evidence, then verify resolution with `getent hosts` and continue working.
+```bash
+bash LabTools/sync-hosts.sh authority 10.10.11.X dc.authority.htb dc authority.htb
+```
+
+The helper owns only the `# labhtb:<lab-name>` line, so repeated updates replace the lab mapping instead of producing duplicates. It verifies each supplied name with `getent hosts` and then enumeration continues immediately.
 
 ## Project layout
 
@@ -80,6 +90,9 @@ labhtb/
 ├── opencode.json
 ├── setup.sh
 ├── start.sh
+├── scripts/
+│   ├── fast-scan.sh
+│   └── sync-hosts.sh
 ├── .opencode/
 │   └── skills/
 │       ├── ad-methodology/
@@ -115,6 +128,7 @@ labs/<lab-name>/
 ├── scans/
 ├── evidence/
 ├── raw/
+├── LabTools -> ../../scripts
 └── CPTS-Checklists -> ../../.cpts-checklists
 ```
 
@@ -128,11 +142,12 @@ labs/<lab-name>/
 2. Clones or updates the latest CPTS-Checklists.
 3. Creates/resumes the isolated lab workspace.
 4. Creates `scans/`, `raw/`, and `evidence/` directories.
-5. Seeds target/domain/hostname state from operator input.
-6. Requests `sudo` once and keeps its timestamp active during the OpenCode session.
-7. Synchronizes provided hostname/domain into `/etc/hosts` when known.
-8. Starts OpenCode in fast-start, state-driven mode.
-9. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
+5. Exposes reusable helpers through `LabTools/`.
+6. Seeds target/domain/hostname state from operator input.
+7. Requests `sudo` once and keeps its timestamp active during the OpenCode session.
+8. Synchronizes provided hostname/domain into `/etc/hosts` when known.
+9. Starts OpenCode in fast-start, state-driven mode.
+10. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
 
 ## Authentication troubleshooting
 
@@ -141,7 +156,7 @@ The copilot follows a short validation chain instead of jumping to unusual expla
 ```text
 local vs domain context
         ↓
-baseline credential validation (e.g. SMB/NetExec)
+baseline credential validation (prefer SMB/NetExec when exposed)
         ↓
 protocol-specific authorization (e.g. WinRM/NetExec)
         ↓
@@ -196,9 +211,9 @@ Routine state/checklist work can use a fast inexpensive model. Switch to a stron
 
 - read current state first,
 - prioritize the shortest reliable path to useful facts,
-- use two-stage Nmap discovery,
+- use the fast scan helper for fresh discovery,
 - synchronize confirmed names into `/etc/hosts`,
-- validate credentials systematically,
+- validate local/domain credential context systematically,
 - lazy-load only relevant checklist files,
 - give only 1–3 next actions,
 - update state/evidence/reporting continuously,
