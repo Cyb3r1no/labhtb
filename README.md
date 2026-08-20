@@ -28,10 +28,11 @@ On the first launch for a lab you provide only:
 TARGET IP: 10.10.11.X
 DOMAIN: UNKNOWN
 HOSTNAME: UNKNOWN
-CREDENTIALS: NONE
+USERNAME: NONE
+PASSWORD: NONE
 ```
 
-The launcher then opens OpenCode inside a private per-lab workspace.
+Only the password prompt is hidden while typing. The launcher then opens OpenCode inside a private per-lab workspace.
 
 ## Project layout
 
@@ -78,6 +79,8 @@ labs/<lab-name>/
 └── CPTS-Checklists -> ../../.cpts-checklists
 ```
 
+`brief.md` is local-only, ignored by Git, and set to mode `600`. It contains the startup lab metadata, including username/password if you provide them.
+
 ## What happens automatically
 
 `./start.sh <lab-name>`:
@@ -88,6 +91,16 @@ labs/<lab-name>/
 4. Preserves existing notes, evidence, commands, and report material.
 5. Starts OpenCode with project instructions and auto-approved permissions.
 6. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
+
+## Editing an existing lab
+
+Use:
+
+```bash
+./start.sh authority --edit
+```
+
+This opens the lab's local `brief.md` in `$EDITOR` (or `nano` by default), then resumes the lab normally.
 
 ## Skills
 
