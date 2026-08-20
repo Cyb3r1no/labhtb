@@ -55,8 +55,6 @@ sync_known_hosts() {
     fi
   fi
 
-  # HTB/CPTS labs commonly require the discovered/provided domain itself
-  # to resolve to the current target. Only add it when it is known.
   if [ -n "$domain" ] && [ "$domain" != "UNKNOWN" ]; then
     add_name "$domain"
   fi
@@ -108,6 +106,7 @@ fi
 
 touch "$LAB_DIR/commands.txt"
 ln -sfn ../../.cpts-checklists "$LAB_DIR/CPTS-Checklists"
+ln -sfn ../../scripts "$LAB_DIR/LabTools"
 
 if [ ! -f "$LAB_DIR/brief.md" ]; then
   echo
@@ -143,8 +142,6 @@ EOF
 
   chmod 600 "$LAB_DIR/brief.md"
 
-  # Seed the most important state immediately so the model does not spend
-  # context rediscovering values already supplied by the operator.
   sed -i "s|^- Target IP: UNKNOWN$|- Target IP: $TARGET_IP|" "$LAB_DIR/notes.md"
   sed -i "s|^- Hostname: UNKNOWN$|- Hostname: $HOSTNAME|" "$LAB_DIR/notes.md"
   sed -i "s|^- Domain: UNKNOWN$|- Domain: $DOMAIN|" "$LAB_DIR/notes.md"
@@ -153,8 +150,6 @@ elif [ "$EDIT_MODE" = "--edit" ]; then
   chmod 600 "$LAB_DIR/brief.md"
 fi
 
-# Give the OpenCode session access to sudo when a lab command needs it,
-# without running the entire OpenCode process as root. Disable with LABHTB_SUDO=0.
 if [ "${LABHTB_SUDO:-1}" != "0" ] && command -v sudo >/dev/null 2>&1; then
   echo
   echo "[labhtb] Authorizing sudo for this lab session..."
@@ -173,13 +168,14 @@ if [ "${LABHTB_SUDO:-1}" != "0" ] && command -v sudo >/dev/null 2>&1; then
   fi
 fi
 
-PROMPT="Read brief.md and notes.md first. Follow AGENTS.md and load only relevant project skills. Use CPTS-Checklists as the methodology source. FAST-START: if discovery is fresh, do fast all-port discovery first, then targeted service enumeration; immediately sync any confirmed hostname/domain/FQDN into /etc/hosts; validate supplied credentials with standard tooling before investigating unusual protocol behavior. Resume from current state, avoid repeating completed work, and keep responses concise using STATE, NEXT, WHY, EVIDENCE."
+PROMPT="Read brief.md and notes.md first. Follow AGENTS.md and load only relevant project skills. Use CPTS-Checklists as the methodology source. FAST-START: use LabTools/fast-scan.sh for fresh discovery; when hostname/domain/FQDN is confirmed use LabTools/sync-hosts.sh immediately; validate supplied credentials with standard tooling before unusual protocol troubleshooting. Resume from current state, avoid repeating completed work, and keep responses concise using STATE, NEXT, WHY, EVIDENCE."
 
 cd "$LAB_DIR"
 
 echo
 echo "[labhtb] Starting OpenCode in: $LAB_DIR"
 echo "[labhtb] Methodology: latest CPTS-Checklists"
+echo "[labhtb] Tools: LabTools/fast-scan.sh + LabTools/sync-hosts.sh"
 echo "[labhtb] Mode: fast-start / state-driven"
 if [ -n "${LABHTB_MODEL:-}" ]; then
   echo "[labhtb] Model override: $LABHTB_MODEL"
