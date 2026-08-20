@@ -1,69 +1,89 @@
 # labhtb
 
-A simple CPTS copilot for authorized Hack The Box labs.
+A simple CPTS methodology copilot for authorized Hack The Box labs.
 
-## Use it
+The whole workflow is:
 
-First time only:
+```text
+./start.sh
+   ↓
+Recon + basic enumeration once
+   ↓
+OpenCode reads the results
+   ↓
+OpenCode saves state immediately
+   ↓
+One best next step
+   ↓
+You execute it
+   ↓
+repeat
+```
+
+## Start
+
+First clone:
 
 ```bash
 git clone https://github.com/Cyb3r1no/labhtb.git
 cd labhtb
+./start.sh
 ```
 
-Every lab/session after that:
+After that, every lab starts the same way:
 
 ```bash
 ./start.sh
 ```
 
-That is the normal workflow.
-
-`start.sh` asks for the lab name. For a new lab it asks only for:
+It asks only for:
 
 ```text
-Target IP
-Username (optional)
-Password (optional)
+Lab name:
+Target IP:
+Username [NONE]:
+Password [NONE]:   # only if a username was supplied
 ```
 
-Domain and hostname start as `UNKNOWN` and are discovered during the lab.
+That is the normal interface. No flags are required.
 
 ## What happens automatically
 
-For a new lab only:
+For a new lab, labhtb:
 
-1. Update the local CPTS-Checklists copy.
-2. Run one bounded baseline recon:
-   - fast TCP port discovery,
-   - targeted service/version scan,
-   - SMB baseline when available,
-   - LDAP RootDSE baseline when available.
-3. Save recon output locally.
-4. Open OpenCode.
-5. OpenCode records the recon results and gives one best next action.
+1. Updates the latest `imjustBuck/CPTS-Checklists` copy.
+2. Creates a private local workspace for the lab.
+3. Runs one bounded baseline:
+   - fast TCP all-port discovery,
+   - targeted `-sC -sV` on confirmed ports,
+   - SMB identity + anonymous-share baseline when SMB is exposed,
+   - LDAP RootDSE when LDAP is exposed,
+   - validates the single supplied credential pair on relevant SMB/LDAP/WinRM services when available.
+4. Saves raw outputs and commands.
+5. Opens OpenCode.
+6. Stops autonomous testing.
 
-Recon does not repeat automatically when you resume the same lab.
+The baseline does not spray passwords, exploit targets, escalate privileges, move laterally, or chain attacks.
 
-## After recon
+## What OpenCode does
 
-OpenCode becomes the copilot:
+OpenCode is the copilot, not the driver.
+
+After every meaningful result it should:
+
+1. update `notes.md`,
+2. maintain the current `PHASE`,
+3. record the command,
+4. mark methodology progress,
+5. update credentials/access/findings,
+6. update report notes/evidence when relevant,
+7. give exactly one highest-value next action,
+8. wait for you.
+
+Normal response:
 
 ```text
-You execute a step
-      ↓
-Give OpenCode the result
-      ↓
-It records the result immediately
-      ↓
-It gives ONE next action
-      ↓
-Waits for you
-```
-
-Response format:
-
-```text
+PHASE
 STATE
 LOGGED
 NEXT
@@ -71,15 +91,41 @@ WHY
 EVIDENCE
 ```
 
-If you explicitly want OpenCode to execute one command, use:
+## Two useful commands
+
+Inside OpenCode:
 
 ```text
-RUN: <command>
+/status
 ```
 
-It should run only that command, record the result, then return to copilot mode.
+Shows where you are, what is done, current access/credentials, strongest lead, and one next check.
 
-## Saved per lab
+When you feel lost:
+
+```text
+/stuck
+```
+
+It reviews the current phase, unfinished methodology, the compact CPTS decision map, and your personal notes if available, then gives one meaningful missed branch.
+
+## Your CPTS study notes
+
+The repository contains `knowledge/cpts-map.md`, a compact phase/trigger map distilled from the operator's CPTS study notes.
+
+If you want OpenCode to also search your full personal notes for familiar commands and examples, put them once at:
+
+```text
+labhtb/cpts-notes.md
+```
+
+That file is ignored by Git and stays local. `start.sh` exposes it to every lab automatically as `CPTS-NOTES.md`.
+
+This is optional; the project works without it.
+
+## Lab files
+
+Each lab stays local under:
 
 ```text
 labs/<lab-name>/
@@ -91,13 +137,53 @@ labs/<lab-name>/
 ├── scans/
 ├── raw/
 ├── evidence/
-└── CPTS-Checklists
+├── CPTS-Checklists -> ../../.cpts-checklists
+├── CPTS-MAP.md -> ../../knowledge/cpts-map.md
+└── CPTS-NOTES.md -> ../../cpts-notes.md   # only if present
 ```
 
-`labs/` is ignored by Git.
+`labs/`, `.cpts-checklists/`, and `cpts-notes.md` are ignored by Git.
 
-## The rule
+## PHASE model
 
-**Baseline recon is automatic. You do the lab. The copilot remembers everything and tells you the next best step.**
+The copilot always knows which part of the engagement you are in:
 
-Use only on systems you own or are explicitly authorized to test.
+```text
+RECON
+SERVICE_ENUM
+INITIAL_ACCESS
+AD_ENUM
+AD_ATTACK_PATH
+WINDOWS_PRIVESC
+LINUX_PRIVESC
+PIVOTING
+PROOF_REPORT
+```
+
+This is the main idea of the rebuild: you should not have to remember a 5,000-line notebook while solving a lab. The project should retrieve the relevant methodology only when the current phase needs it.
+
+## If you want OpenCode to run one command
+
+Explicitly write:
+
+```text
+RUN: <command>
+```
+
+It should execute only that action, save the result, return to Copilot mode, give one next action, and wait.
+
+OpenCode shell actions require approval by project configuration, while reading/updating the lab state is allowed without interruption.
+
+## Resume
+
+Run:
+
+```bash
+./start.sh
+```
+
+and enter the same lab name. Existing recon, state, commands, evidence, and report notes are reused.
+
+## Scope
+
+Use only against systems you own or are explicitly authorized to test, including authorized Hack The Box training environments.
