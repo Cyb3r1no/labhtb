@@ -1,18 +1,29 @@
 # labhtb
 
-A fast, state-driven OpenCode workspace for authorized Hack The Box / CPTS practice labs.
+A simple OpenCode copilot for authorized Hack The Box / CPTS practice labs.
 
-The project keeps the workflow simple:
+The idea is intentionally small:
 
-**Fast discovery → Identity/names → Access validation → Methodology → Evidence → Report**
+**You test → OpenCode records → OpenCode gives one next step → you continue**
 
-It uses the latest upstream [`imjustBuck/CPTS-Checklists`](https://github.com/imjustBuck/CPTS-Checklists) as the methodology source without vendoring a stale copy into this repository.
+`labhtb` uses the latest upstream [`imjustBuck/CPTS-Checklists`](https://github.com/imjustBuck/CPTS-Checklists) as the methodology source without copying it into this repository.
 
-## Why
+## What labhtb is
 
-CPTS labs become slow when the operator has to remember methodology, commands, credentials, attack paths, name resolution, screenshots, and reporting at the same time. `labhtb` keeps those responsibilities organized while leaving engagement decisions in the operator's hands.
+It is a **CPTS methodology copilot**.
 
-OpenCode acts as a methodology copilot, not a blind autonomous pentest agent.
+It helps you:
+
+- remember what has already been tested,
+- keep credentials, hosts, services, access, and attack paths organized,
+- mark completed/attempted methodology steps immediately,
+- record commands as you go,
+- maintain report notes while the lab is still active,
+- decide the single highest-value next action.
+
+It is **not** an autonomous pentest agent.
+
+By default OpenCode does not run scans or attack commands for you.
 
 ## Quick start
 
@@ -22,102 +33,51 @@ cd labhtb
 ./start.sh authority
 ```
 
-On the first launch you provide only:
+On the first launch for a lab:
 
 ```text
 TARGET IP: 10.10.11.X
-DOMAIN: UNKNOWN
-HOSTNAME: UNKNOWN
-USERNAME: NONE
-PASSWORD: NONE
+DOMAIN [UNKNOWN]:
+HOSTNAME [UNKNOWN]:
+USERNAME [NONE]:
+PASSWORD [NONE]:
 ```
 
-Only the password prompt is hidden while typing.
+Then OpenCode opens in **COPILOT mode**.
 
-## Fast-start behavior
-
-Fresh discovery should use the built-in helper:
-
-```bash
-./LabTools/fast-scan.sh <TARGET_IP> scans
-```
-
-It performs:
+## Normal workflow
 
 ```text
-fast all-TCP-port discovery
+You run a command
         ↓
-extract confirmed open ports
+Give OpenCode the command/output
         ↓
-targeted -sC -sV only against those ports
+OpenCode immediately updates local state
         ↓
--oA artifacts under scans/
+OpenCode gives ONE next action
+        ↓
+You run it
+        ↓
+repeat
 ```
 
-This avoids the slow default of combining `-p-` with `-sC -sV`.
+Every meaningful result should be persisted before the next recommendation.
 
-The copilot then immediately:
-
-1. identifies hostname/domain/FQDN/DC context,
-2. synchronizes confirmed names into `/etc/hosts`,
-3. validates supplied credentials with standard tooling,
-4. begins protocol-specific enumeration,
-5. avoids repeating checks already completed.
-
-## `/etc/hosts` automation
-
-Name resolution is treated as an early setup task.
-
-If DOMAIN/HOSTNAME are supplied when the lab starts, `start.sh` creates an idempotent managed entry such as:
+OpenCode responds with:
 
 ```text
-10.10.11.X dc.authority.htb dc authority.htb # labhtb:authority
+STATE
+LOGGED
+NEXT
+WHY
+EVIDENCE
 ```
 
-If names are discovered later, the copilot uses:
+`NEXT` should normally contain only one action or one command.
 
-```bash
-./LabTools/sync-hosts.sh authority 10.10.11.X dc.authority.htb dc authority.htb
-```
+## What gets saved
 
-The helper owns only the `# labhtb:<lab-name>` line, so repeated updates replace the lab mapping instead of producing duplicates. It verifies each supplied name with `getent hosts` and then enumeration continues immediately.
-
-## Project layout
-
-```text
-labhtb/
-├── AGENTS.md
-├── opencode.json
-├── setup.sh
-├── start.sh
-├── scripts/
-│   ├── fast-scan.sh
-│   └── sync-hosts.sh
-├── .opencode/
-│   └── skills/
-│       ├── ad-methodology/
-│       │   └── SKILL.md
-│       ├── reporting/
-│       │   └── SKILL.md
-│       └── evidence-tracking/
-│           └── SKILL.md
-├── templates/
-│   ├── notes.md
-│   └── report-notes.md
-├── docs/
-│   ├── WORKFLOW.md
-│   └── ARCHITECTURE.md
-└── .gitignore
-```
-
-Runtime data is local and ignored by Git:
-
-```text
-.cpts-checklists/
-labs/
-```
-
-Each lab receives:
+Each lab has its own local ignored workspace:
 
 ```text
 labs/<lab-name>/
@@ -125,106 +85,85 @@ labs/<lab-name>/
 ├── notes.md
 ├── commands.txt
 ├── report-notes.md
-├── scans/
 ├── evidence/
-├── raw/
-├── LabTools -> ../../scripts
 └── CPTS-Checklists -> ../../.cpts-checklists
 ```
 
-`brief.md` is local-only, ignored by Git, and set to mode `600`. It contains startup metadata, including username/password when provided.
+### `notes.md`
+Current state plus completed, attempted, blocked, and pending methodology checks.
 
-## What happens automatically
+### `commands.txt`
+Important commands in chronological order.
 
-`./start.sh <lab-name>`:
+### `report-notes.md`
+Report-worthy findings are recorded while you work instead of being reconstructed at the end.
 
-1. Verifies Git and OpenCode.
-2. Clones or updates the latest CPTS-Checklists.
-3. Creates/resumes the isolated lab workspace.
-4. Creates `scans/`, `raw/`, and `evidence/` directories.
-5. Exposes reusable helpers through `LabTools/`.
-6. Seeds target/domain/hostname state from operator input.
-7. Requests `sudo` once and keeps its timestamp active during the OpenCode session.
-8. Synchronizes provided hostname/domain into `/etc/hosts` when known.
-9. Starts OpenCode in fast-start, state-driven mode.
-10. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
+### `evidence/`
+Screenshots and proof for the final report.
 
-## Authentication troubleshooting
+The entire `labs/` directory is ignored by Git.
 
-The copilot follows a short validation chain instead of jumping to unusual explanations:
+## CPTS-Checklists updates
 
-```text
-local vs domain context
-        ↓
-baseline credential validation (prefer SMB/NetExec when exposed)
-        ↓
-protocol-specific authorization (e.g. WinRM/NetExec)
-        ↓
-only then investigate JEA/custom WSMan/edge cases if evidence exists
-```
+`setup.sh` automatically clones the methodology on first use and fast-forward updates it on later launches.
 
-This prevents wasting time on custom SOAP or unsupported hypotheses when standard tools can answer the question quickly.
-
-## Permissions
-
-`opencode.json` uses `permission: "allow"`, and `start.sh` launches OpenCode with `--auto` for a low-friction authorized lab workflow.
-
-OpenCode itself stays as the normal Kali user. `start.sh` pre-authorizes `sudo` so individual commands that genuinely need local elevation can use it without relaunching the whole workspace as root.
-
-Disable sudo keepalive for one launch with:
+You can update it manually with:
 
 ```bash
-LABHTB_SUDO=0 ./start.sh authority
+./setup.sh
 ```
 
-## Editing an existing lab
+## If you want OpenCode to execute one thing
+
+Use an explicit `RUN:` request inside OpenCode, for example:
+
+```text
+RUN: nxc smb 10.10.11.10 -u user -p 'pass' --shares
+```
+
+OpenCode should execute only that requested action, save the result, return to COPILOT mode, and stop after recommending one next step.
+
+Shell execution is configured to require approval, so normal methodology guidance and file logging stay low-friction while target-facing execution remains deliberate.
+
+## Resume a lab
+
+```bash
+./start.sh authority
+```
+
+Existing state, commands, report notes, and evidence are preserved.
+
+## Edit target information
 
 ```bash
 ./start.sh authority --edit
 ```
 
-This opens the local `brief.md` in `$EDITOR` (or `nano`) and then resumes normally.
+This opens the local `brief.md` and then resumes the lab.
 
-## Skills
+## Status
 
-Only three focused skills are included initially:
+Inside OpenCode simply say:
 
-- **ad-methodology** — fast AD methodology coverage and next-step reasoning.
-- **reporting** — continuous CPTS-style report notes.
-- **evidence-tracking** — screenshots, raw outputs, and proof references.
+```text
+status
+```
 
-Skills load only when relevant to keep context small and cheap models useful.
+The copilot should summarize current target identity, access, credentials, findings, completed work, strongest lead, and the highest-value pending check without running anything.
 
 ## Model selection
 
-Use the current OpenCode model or override one launch:
+Use the model already selected in OpenCode, or override one launch:
 
 ```bash
 LABHTB_MODEL='provider/model' ./start.sh authority
 ```
 
-Routine state/checklist work can use a fast inexpensive model. Switch to a stronger model only for genuinely difficult attack-path reasoning.
+A cheap/fast model is usually enough for state tracking, checklist coverage, and report-note maintenance. Switch to a stronger model only when attack-path reasoning becomes difficult.
 
-## Core behavior
+## Core rule
 
-`AGENTS.md` is the project brain. It requires the copilot to:
-
-- read current state first,
-- prioritize the shortest reliable path to useful facts,
-- use the fast scan helper for fresh discovery,
-- synchronize confirmed names into `/etc/hosts`,
-- validate local/domain credential context systematically,
-- lazy-load only relevant checklist files,
-- give only 1–3 next actions,
-- update state/evidence/reporting continuously,
-- avoid long-lived automated interactive shells,
-- avoid unsupported hypotheses and invented evidence,
-- avoid autonomous exploitation unless explicitly requested.
-
-## Documentation
-
-- [Workflow](docs/WORKFLOW.md)
-- [Architecture](docs/ARCHITECTURE.md)
+**The operator tests. The copilot remembers, organizes, documents, and points to the next best step.**
 
 ## Scope
 
