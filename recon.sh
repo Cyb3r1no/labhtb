@@ -3,14 +3,16 @@ set -euo pipefail
 
 TARGET="${1:-}"
 LAB_DIR="${2:-}"
+USER_NAME="${LABHTB_USER:-NONE}"
+USER_PASS="${LABHTB_PASS:-NONE}"
 
 if [ -z "$TARGET" ] || [ -z "$LAB_DIR" ]; then
-  echo "Usage: bash recon.sh <target-ip> <lab-dir>" >&2
+  echo "Usage: recon.sh <target-ip> <lab-dir>" >&2
   exit 1
 fi
 
 command -v nmap >/dev/null 2>&1 || {
-  echo "[labhtb] nmap is required for automatic recon." >&2
+  echo "[labhtb] nmap is required." >&2
   exit 1
 }
 
@@ -20,30 +22,32 @@ ALL="$LAB_DIR/scans/nmap-allports"
 SERVICES="$LAB_DIR/scans/nmap-services"
 SUMMARY="$LAB_DIR/recon-summary.md"
 COMMANDS="$LAB_DIR/commands.txt"
-MIN_RATE="${LABHTB_MIN_RATE:-3000}"
 
-touch "$COMMANDS"
-
-log_cmd() {
-  printf '[AUTO RECON] %s\n' "$1" >> "$COMMANDS"
-}
-
-run_bounded() {
+bounded() {
+  local seconds="$1"
+  shift
   if command -v timeout >/dev/null 2>&1; then
-    timeout "$1" "${@:2}"
+    timeout "$seconds" "$@"
   else
-    "${@:2}"
+    "$@"
   fi
 }
 
-echo
-printf '[labhtb] AUTO RECON — bounded discovery/enumeration only\n'
-printf '[labhtb] Target: %s\n' "$TARGET"
+has_port() {
+  case ",$OPEN_PORTS," in
+    *",$1,"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
-# Stage 1: discover TCP ports quickly.
-echo "[labhtb] 1/4 Fast TCP port discovery..."
-log_cmd "nmap -Pn -n -p- --min-rate $MIN_RATE -T4 $TARGET -oA scans/nmap-allports"
-nmap -Pn -n -p- --min-rate "$MIN_RATE" -T4 "$TARGET" -oA "$ALL"
+log_command() {
+  printf '%s\n' "$1" >> "$COMMANDS"
+}
+
+echo
+printf '[labhtb] 1/4 Fast TCP discovery\n'
+log_command "nmap -Pn -n -p- --min-rate ${LABHTB_MIN_RATE:-3000} -T4 $TARGET -oA scans/nmap-allports"
+nmap -Pn -n -p- --min-rate "${LABHTB_MIN_RATE:-3000}" -T4 "$TARGET" -oA "$ALL"
 
 OPEN_PORTS="$({
   awk -F'Ports: ' '/Ports: / { print $2 }' "$ALL.gnmap" \
@@ -58,49 +62,41 @@ if [ -z "$OPEN_PORTS" ]; then
 
 - Target: $TARGET
 - Open TCP Ports: none discovered
-- Automatic recon: COMPLETE
-- Enumeration: no TCP service enumeration possible
+- Baseline: COMPLETE
+- Next: Copilot should review whether UDP, filtering, routing, or target availability needs attention.
 EOF
-  touch "$LAB_DIR/.recon-complete"
   echo "[labhtb] No open TCP ports discovered."
   exit 0
 fi
 
-echo "[labhtb] Open TCP ports: $OPEN_PORTS"
+printf '[labhtb] Open ports: %s\n' "$OPEN_PORTS"
 
-# Stage 2: service/version/default-script scan only on confirmed ports.
-echo "[labhtb] 2/4 Targeted service enumeration..."
-log_cmd "nmap -Pn -n -sC -sV -T4 -p$OPEN_PORTS $TARGET -oA scans/nmap-services"
+echo "[labhtb] 2/4 Targeted service enumeration"
+log_command "nmap -Pn -n -sC -sV -T4 -p$OPEN_PORTS $TARGET -oA scans/nmap-services"
 nmap -Pn -n -sC -sV -T4 -p"$OPEN_PORTS" "$TARGET" -oA "$SERVICES"
 
-SMB_RESULT="not run"
-LDAP_RESULT="not run"
+SMB_BASELINE="not applicable"
+LDAP_BASELINE="not applicable"
+AUTH_BASELINE="not supplied"
 
-has_port() {
-  case ",$OPEN_PORTS," in
-    *",$1,"*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Stage 3: one bounded SMB identity/null-session check when SMB exists.
+# Basic SMB identity / anonymous access only.
 if has_port 445 && command -v nxc >/dev/null 2>&1; then
-  echo "[labhtb] 3/4 SMB baseline enumeration with NetExec..."
-  log_cmd "nxc smb $TARGET"
-  log_cmd "nxc smb $TARGET -u '' -p '' --shares"
+  echo "[labhtb] 3/4 SMB baseline"
+  log_command "nxc smb $TARGET"
+  log_command "nxc smb $TARGET -u '' -p '' --shares"
   {
-    echo '### NetExec SMB identity'
-    run_bounded 45 nxc smb "$TARGET" || true
+    echo '### SMB identity'
+    bounded 45 nxc smb "$TARGET" || true
     echo
-    echo '### NetExec SMB anonymous share check'
-    run_bounded 45 nxc smb "$TARGET" -u '' -p '' --shares || true
-  } | tee "$LAB_DIR/raw/nxc-smb-baseline.txt"
-  SMB_RESULT="raw/nxc-smb-baseline.txt"
+    echo '### Anonymous shares'
+    bounded 45 nxc smb "$TARGET" -u '' -p '' --shares || true
+  } | tee "$LAB_DIR/raw/smb-baseline.txt"
+  SMB_BASELINE="raw/smb-baseline.txt"
 else
-  echo "[labhtb] 3/4 SMB baseline skipped (445 closed or nxc unavailable)."
+  echo "[labhtb] 3/4 SMB baseline skipped"
 fi
 
-# Stage 4: bounded LDAP RootDSE discovery when LDAP exists.
+# LDAP RootDSE is useful for domain/DC identity and is unauthenticated.
 LDAP_PORTS=""
 for p in 389 636; do
   if has_port "$p"; then
@@ -109,12 +105,61 @@ for p in 389 636; do
 done
 
 if [ -n "$LDAP_PORTS" ]; then
-  echo "[labhtb] 4/4 LDAP RootDSE enumeration..."
-  log_cmd "nmap -Pn -n -p$LDAP_PORTS --script ldap-rootdse $TARGET -oN raw/ldap-rootdse.txt"
-  run_bounded 60 nmap -Pn -n -p"$LDAP_PORTS" --script ldap-rootdse "$TARGET" -oN "$LAB_DIR/raw/ldap-rootdse.txt" || true
-  LDAP_RESULT="raw/ldap-rootdse.txt"
+  echo "[labhtb] 4/4 LDAP RootDSE baseline"
+  log_command "nmap -Pn -n -p$LDAP_PORTS --script ldap-rootdse $TARGET -oN raw/ldap-rootdse.txt"
+  bounded 60 nmap -Pn -n -p"$LDAP_PORTS" --script ldap-rootdse "$TARGET" \
+    -oN "$LAB_DIR/raw/ldap-rootdse.txt" || true
+  LDAP_BASELINE="raw/ldap-rootdse.txt"
 else
-  echo "[labhtb] 4/4 LDAP baseline skipped (389/636 closed)."
+  echo "[labhtb] 4/4 LDAP baseline skipped"
+fi
+
+# If the operator supplied one credential pair, validate it only against the
+# most useful AD access protocols that are actually exposed. No spraying.
+if [ "$USER_NAME" != "NONE" ] && [ -n "$USER_NAME" ] && \
+   [ "$USER_PASS" != "NONE" ] && [ -n "$USER_PASS" ] && \
+   command -v nxc >/dev/null 2>&1; then
+  AUTH_BASELINE="raw/auth-baseline.txt"
+  : > "$LAB_DIR/$AUTH_BASELINE"
+
+  if has_port 445; then
+    echo "[labhtb] Validating supplied credential on SMB"
+    log_command "nxc smb $TARGET -u '$USER_NAME' -p '<PASSWORD>'"
+    log_command "nxc smb $TARGET -u '$USER_NAME' -p '<PASSWORD>' --shares"
+    {
+      echo '### SMB credential validation'
+      bounded 45 nxc smb "$TARGET" -u "$USER_NAME" -p "$USER_PASS" || true
+      echo
+      echo '### SMB shares with supplied credential'
+      bounded 45 nxc smb "$TARGET" -u "$USER_NAME" -p "$USER_PASS" --shares || true
+      echo
+    } >> "$LAB_DIR/$AUTH_BASELINE"
+  fi
+
+  if { has_port 389 || has_port 636; }; then
+    echo "[labhtb] Validating supplied credential on LDAP"
+    log_command "nxc ldap $TARGET -u '$USER_NAME' -p '<PASSWORD>'"
+    {
+      echo '### LDAP credential validation'
+      bounded 45 nxc ldap "$TARGET" -u "$USER_NAME" -p "$USER_PASS" || true
+      echo
+    } >> "$LAB_DIR/$AUTH_BASELINE"
+  fi
+
+  if has_port 5985 || has_port 5986; then
+    echo "[labhtb] Validating supplied credential on WinRM"
+    log_command "nxc winrm $TARGET -u '$USER_NAME' -p '<PASSWORD>'"
+    {
+      echo '### WinRM credential validation'
+      bounded 45 nxc winrm "$TARGET" -u "$USER_NAME" -p "$USER_PASS" || true
+      echo
+    } >> "$LAB_DIR/$AUTH_BASELINE"
+  fi
+
+  if [ ! -s "$LAB_DIR/$AUTH_BASELINE" ]; then
+    rm -f "$LAB_DIR/$AUTH_BASELINE"
+    AUTH_BASELINE="supplied, but no supported AD access protocol was exposed"
+  fi
 fi
 
 cat > "$SUMMARY" <<EOF
@@ -124,14 +169,14 @@ cat > "$SUMMARY" <<EOF
 - Open TCP Ports: $OPEN_PORTS
 - Port discovery: scans/nmap-allports.nmap
 - Service enumeration: scans/nmap-services.nmap
-- SMB baseline: $SMB_RESULT
-- LDAP RootDSE: $LDAP_RESULT
-- Automatic recon: COMPLETE
+- SMB baseline: $SMB_BASELINE
+- LDAP RootDSE: $LDAP_BASELINE
+- Supplied credential baseline: $AUTH_BASELINE
+- Baseline: COMPLETE
 
 ## Boundary
 
-This automatic phase stops here. It performs discovery and basic unauthenticated enumeration only. Further enumeration, credential use, exploitation, or lateral movement belongs to the operator/Copilot loop.
+The automatic phase ends here. It performs discovery, basic unauthenticated enumeration, and validation of the single credential pair supplied by the operator when relevant. It does not spray passwords, exploit, escalate privileges, move laterally, or chain attacks.
 EOF
 
-touch "$LAB_DIR/.recon-complete"
-printf '\n[labhtb] AUTO RECON complete. OpenCode will review and log the results.\n'
+printf '\n[labhtb] Baseline complete.\n'
