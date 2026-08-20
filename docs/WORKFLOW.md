@@ -21,9 +21,10 @@ On the first run for that lab, it asks only for:
 - TARGET IP
 - DOMAIN (or UNKNOWN)
 - HOSTNAME (or UNKNOWN)
-- CREDENTIALS (or NONE)
+- USERNAME (or NONE)
+- PASSWORD (or NONE)
 
-Credentials are entered without terminal echo and stored only in the ignored local lab workspace.
+Only the password input is hidden while typing. The resulting `brief.md` is stored only inside the ignored local lab workspace and is set to mode `600`.
 
 The launcher creates:
 
@@ -67,10 +68,21 @@ Example answers:
 TARGET IP: 10.10.11.222
 DOMAIN [UNKNOWN]: authority.htb
 HOSTNAME [UNKNOWN]: dc
-CREDENTIALS [NONE]:
+USERNAME [NONE]: logger
+PASSWORD [NONE] (input hidden):
 ```
 
 OpenCode then starts with the current lab brief and state already available.
+
+## Editing lab metadata
+
+To update the target, domain, hostname, username, or password for an existing lab:
+
+```bash
+./start.sh authority --edit
+```
+
+This opens `labs/authority/brief.md` using `$EDITOR`, or `nano` if `$EDITOR` is not set. When the editor closes, the launcher restores mode `600` and resumes the same lab.
 
 ## Operator loop
 
