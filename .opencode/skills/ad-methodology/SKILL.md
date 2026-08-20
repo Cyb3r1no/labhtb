@@ -22,31 +22,33 @@ Use `notes.md` as current state and `CPTS-Checklists/Windows & AD/` plus other r
 
 For a fresh target, prioritize useful facts in this order:
 
-1. Fast all-port discovery.
-2. Targeted `-sC -sV` only against confirmed open ports.
+1. Fast all-port discovery using `bash LabTools/fast-scan.sh <TARGET_IP> scans`.
+2. Targeted service/default-script enumeration from the helper output.
 3. Hostname/domain/DC identity.
 4. `/etc/hosts` update as soon as names are confirmed.
 5. Credential validation and local-vs-domain account classification.
 6. Protocol-specific enumeration based on exposed services.
 
-Avoid `nmap -p- -sC -sV` as the default first scan. Prefer fast discovery such as:
+Do not default to `nmap -p- -sC -sV`.
 
-`nmap -Pn -n -p- --min-rate 3000 -T4 <TARGET> -oA scans/nmap-allports`
+## Fast service pivots
 
-Then target only open ports:
-
-`nmap -Pn -n -sC -sV -p<OPEN_PORTS> -T4 <TARGET> -oA scans/nmap-services`
+- SMB/445 → NetExec early for hostname/domain/signing, credential context, shares and access.
+- Kerberos/88 + LDAP/389/636/3268/3269 → confirm domain/DC identity and name resolution before AD tooling.
+- HTTP(S) redirect/certificate hostname → sync the confirmed name immediately, then enumerate the name-based target.
+- WinRM/5985/5986 → validate authorization with NetExec before Evil-WinRM troubleshooting.
+- Supplied credentials → determine local/domain context once, validate deliberately, then reuse only where relevant.
 
 ## Name resolution
 
 When hostname/domain/FQDN is confirmed by evidence:
 
-- update `notes.md`,
-- keep `brief.md` current when useful,
-- update `/etc/hosts` immediately and idempotently,
-- avoid duplicates/conflicts,
-- verify with `getent hosts`,
-- continue enumeration without waiting for operator confirmation.
+1. Update `notes.md` and `brief.md` when useful.
+2. Run:
+   `bash LabTools/sync-hosts.sh <LAB_NAME> <TARGET_IP> <CONFIRMED_NAME> [MORE_CONFIRMED_NAMES...]`
+3. Include only confirmed aliases.
+4. Verify the helper output / `getent hosts` result.
+5. Continue enumeration immediately.
 
 Never guess names.
 
@@ -55,11 +57,13 @@ Never guess names.
 If supplied credentials or WinRM behave unexpectedly:
 
 1. Determine local vs domain context from evidence.
-2. Validate credentials with a baseline protocol such as SMB/NetExec when available.
-3. Validate WinRM authorization separately with NetExec before debugging Evil-WinRM.
-4. Separate `invalid credentials` from `valid credentials but no WinRM access`.
-5. Investigate JEA/custom WSMan only when standard tooling or server responses provide evidence.
-6. Avoid hand-written SOAP/raw protocol requests unless standard tooling cannot answer the question.
+2. Validate credentials with SMB/NetExec when SMB is available.
+3. Use local-auth mode for confirmed local accounts when appropriate.
+4. Use confirmed domain/name-resolution context for domain accounts.
+5. Validate WinRM authorization separately with NetExec before debugging Evil-WinRM.
+6. Separate `invalid credentials` from `valid credentials but no WinRM access`.
+7. Investigate JEA/custom WSMan only when standard tooling or server responses provide evidence.
+8. Avoid hand-written SOAP/raw protocol requests unless standard tooling cannot answer the question.
 
 ## Reassessment triggers
 
