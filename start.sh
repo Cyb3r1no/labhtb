@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_NAME="${1:-}"
 EDIT_MODE="${2:-}"
+SUDO_KEEPALIVE_PID=""
+
+cleanup() {
+  if [ -n "$SUDO_KEEPALIVE_PID" ]; then
+    kill "$SUDO_KEEPALIVE_PID" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT INT TERM
 
 if [ -z "$LAB_NAME" ]; then
   read -r -p "Lab name: " LAB_NAME
@@ -74,6 +82,25 @@ elif [ "$EDIT_MODE" = "--edit" ]; then
   chmod 600 "$LAB_DIR/brief.md"
 fi
 
+# Give the OpenCode session access to sudo when a lab command needs it,
+# without running the entire OpenCode process as root. Disable with LABHTB_SUDO=0.
+if [ "${LABHTB_SUDO:-1}" != "0" ] && command -v sudo >/dev/null 2>&1; then
+  echo
+  echo "[labhtb] Authorizing sudo for this lab session..."
+  if sudo -v; then
+    (
+      while kill -0 "$$" >/dev/null 2>&1; do
+        sudo -n -v >/dev/null 2>&1 || exit 0
+        sleep 50
+      done
+    ) &
+    SUDO_KEEPALIVE_PID=$!
+    echo "[labhtb] Sudo session active. OpenCode may use sudo when required."
+  else
+    echo "[labhtb] Sudo authorization failed; continuing with normal user permissions." >&2
+  fi
+fi
+
 PROMPT="Read brief.md and notes.md first. Follow the repository AGENTS.md and load only relevant project skills. Use CPTS-Checklists as the primary methodology source. Begin or resume from current state. Keep responses concise and use STATE, NEXT, WHY, EVIDENCE."
 
 cd "$LAB_DIR"
@@ -92,4 +119,4 @@ if [ -n "${LABHTB_MODEL:-}" ]; then
   OPENCODE_ARGS+=("--model" "$LABHTB_MODEL")
 fi
 
-exec opencode "${OPENCODE_ARGS[@]}"
+opencode "${OPENCODE_ARGS[@]}"
