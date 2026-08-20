@@ -13,7 +13,7 @@ if [[ ! "$LAB_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
   exit 1
 fi
 
-"$ROOT_DIR/setup.sh"
+bash "$ROOT_DIR/setup.sh"
 
 LAB_DIR="$ROOT_DIR/labs/$LAB_NAME"
 mkdir -p "$LAB_DIR/evidence" "$LAB_DIR/raw"
@@ -32,10 +32,16 @@ ln -sfn ../../.cpts-checklists "$LAB_DIR/CPTS-Checklists"
 if [ ! -f "$LAB_DIR/brief.md" ]; then
   echo
   echo "[labhtb] New lab: $LAB_NAME"
-  read -r -p "TARGET IP: " TARGET_IP
+
+  TARGET_IP=""
+  while [ -z "$TARGET_IP" ]; do
+    read -r -p "TARGET IP: " TARGET_IP
+  done
+
   read -r -p "DOMAIN [UNKNOWN]: " DOMAIN
   read -r -p "HOSTNAME [UNKNOWN]: " HOSTNAME
-  read -r -p "CREDENTIALS [NONE]: " CREDENTIALS
+  read -r -s -p "CREDENTIALS [NONE]: " CREDENTIALS
+  echo
 
   DOMAIN="${DOMAIN:-UNKNOWN}"
   HOSTNAME="${HOSTNAME:-UNKNOWN}"
@@ -55,14 +61,17 @@ EOF
   chmod 600 "$LAB_DIR/brief.md"
 fi
 
-PROMPT="Read brief.md and notes.md. Follow the repository AGENTS.md and relevant skills. Use CPTS-Checklists as the methodology source. Begin or resume the lab from current state. Keep responses concise and use STATE, NEXT, WHY, EVIDENCE."
+PROMPT="Read brief.md and notes.md first. Follow the repository AGENTS.md and load only relevant project skills. Use CPTS-Checklists as the primary methodology source. Begin or resume from current state. Keep responses concise and use STATE, NEXT, WHY, EVIDENCE."
 
 cd "$LAB_DIR"
 
 echo
- echo "[labhtb] Starting OpenCode in: $LAB_DIR"
- echo "[labhtb] Methodology: latest CPTS-Checklists"
- echo
+echo "[labhtb] Starting OpenCode in: $LAB_DIR"
+echo "[labhtb] Methodology: latest CPTS-Checklists"
+if [ -n "${LABHTB_MODEL:-}" ]; then
+  echo "[labhtb] Model override: $LABHTB_MODEL"
+fi
+echo
 
 OPENCODE_ARGS=("." "--auto" "--prompt" "$PROMPT")
 
