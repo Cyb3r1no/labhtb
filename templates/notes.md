@@ -1,5 +1,8 @@
 # Lab State
 
+## PHASE
+- RECON
+
 ## Target
 - Target IP: UNKNOWN
 - Hostname: UNKNOWN
@@ -8,16 +11,25 @@
 - Domain Controller: UNKNOWN
 - Name Resolution: UNKNOWN
 
-## Automatic Recon
+## Baseline Recon
 - Status: PENDING
 - Open TCP Ports: UNKNOWN
 - Service Scan: PENDING
-- SMB Baseline: PENDING / NOT APPLICABLE
-- LDAP RootDSE: PENDING / NOT APPLICABLE
-- Recon Summary: recon-summary.md
+- SMB Baseline: PENDING / N/A
+- LDAP RootDSE: PENDING / N/A
+- Supplied Credential Validation: PENDING / N/A
+- Summary: recon-summary.md
 
-## Credentials / Hashes / Tickets
+## Credentials / Hashes / Tickets / Certificates
 - NONE
+
+For each new credential-like item track:
+- Identity:
+- Type:
+- Scope:
+- Source:
+- Validated on:
+- Failed on:
 
 ## Discovered Hosts
 - None yet
@@ -31,33 +43,30 @@
 ## Current Foothold / Privilege
 - None
 
-## Users / Groups of Interest
+## Users / Groups / Computers of Interest
 - None yet
 
 ## Shares / Interesting Files
 - None yet
 
-## BloodHound
-- Not collected / reviewed
-
-## ADCS
-- Not checked
-
-## Findings
+## AD / BloodHound / ADCS / Trusts
 - None yet
 
-## Attack-Path Hypotheses
+## Findings / Attack Paths
 - None yet
 
 ## Methodology Progress
 ### DONE
 - None yet
 
-### ATTEMPTED / BLOCKED
+### ATTEMPTED
+- None yet
+
+### BLOCKED
 - None yet
 
 ### PENDING
-- Determine from the relevant CPTS-Checklists section
+- Determine from current PHASE + CPTS-MAP + relevant CPTS-Checklists section
 
 ## Step Log
 - No steps recorded yet
@@ -65,7 +74,10 @@
 ## Current Best Lead
 - None yet
 
-## Session Rule
-- Persist every meaningful result here before recommending the next action.
-- Automatic recon is bounded; after it finishes, continue in Copilot mode.
-- Do not repeat completed checks unless new information changes their value.
+## Missing Evidence
+- None yet
+
+## Rule
+- Save every meaningful result before recommending the next action.
+- Give one next action at a time.
+- Do not repeat completed checks unless new evidence changes their value.
