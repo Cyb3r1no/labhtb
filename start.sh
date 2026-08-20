@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_NAME="${1:-}"
-EDIT_MODE="${2:-}"
+MODE="${2:-}"
 
 if [ -z "$LAB_NAME" ]; then
   read -r -p "Lab name: " LAB_NAME
@@ -14,15 +14,15 @@ if [[ ! "$LAB_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
   exit 1
 fi
 
-if [ -n "$EDIT_MODE" ] && [ "$EDIT_MODE" != "--edit" ]; then
-  echo "Usage: ./start.sh <lab-name> [--edit]" >&2
+if [ -n "$MODE" ] && [ "$MODE" != "--edit" ] && [ "$MODE" != "--recon" ]; then
+  echo "Usage: ./start.sh <lab-name> [--edit|--recon]" >&2
   exit 1
 fi
 
 bash "$ROOT_DIR/setup.sh"
 
 LAB_DIR="$ROOT_DIR/labs/$LAB_NAME"
-mkdir -p "$LAB_DIR/evidence"
+mkdir -p "$LAB_DIR/evidence" "$LAB_DIR/scans" "$LAB_DIR/raw"
 
 if [ ! -f "$LAB_DIR/notes.md" ]; then
   cp "$ROOT_DIR/templates/notes.md" "$LAB_DIR/notes.md"
@@ -35,7 +35,7 @@ fi
 touch "$LAB_DIR/commands.txt"
 ln -sfn ../../.cpts-checklists "$LAB_DIR/CPTS-Checklists"
 
-# Remove the old autonomous-helper symlink from existing lab workspaces.
+# Remove the old helper symlink from existing workspaces if present.
 if [ -L "$LAB_DIR/LabTools" ]; then
   rm "$LAB_DIR/LabTools"
 fi
@@ -77,18 +77,34 @@ EOF
   sed -i "s|^- Target IP: UNKNOWN$|- Target IP: $TARGET_IP|" "$LAB_DIR/notes.md"
   sed -i "s|^- Hostname: UNKNOWN$|- Hostname: $HOSTNAME|" "$LAB_DIR/notes.md"
   sed -i "s|^- Domain: UNKNOWN$|- Domain: $DOMAIN|" "$LAB_DIR/notes.md"
-elif [ "$EDIT_MODE" = "--edit" ]; then
+elif [ "$MODE" = "--edit" ]; then
   "${EDITOR:-nano}" "$LAB_DIR/brief.md"
   chmod 600 "$LAB_DIR/brief.md"
 fi
 
-PROMPT="COPILOT MODE. Read brief.md and notes.md first, then only the relevant CPTS-Checklists section. Do not execute target-facing commands unless I explicitly use RUN:. Before suggesting a next step, immediately persist every meaningful result to notes.md, commands.txt, and report-notes.md when relevant. Recommend exactly one highest-value next action, explain why briefly, and wait for me. Use STATE, LOGGED, NEXT, WHY, EVIDENCE."
+TARGET_IP="$(sed -n 's/^- Target IP: //p' "$LAB_DIR/brief.md" | head -n 1)"
+
+# One bounded automatic recon/enumeration pass per lab.
+# Disable for one launch with LABHTB_RECON=0.
+if [ "${LABHTB_RECON:-1}" != "0" ]; then
+  if [ ! -f "$LAB_DIR/.recon-complete" ] || [ "$MODE" = "--recon" ]; then
+    echo
+    echo "[labhtb] Running bounded AUTO RECON before OpenCode..."
+    if ! bash "$ROOT_DIR/recon.sh" "$TARGET_IP" "$LAB_DIR"; then
+      echo "[labhtb] AUTO RECON did not finish cleanly; OpenCode will still start." >&2
+    fi
+  else
+    echo "[labhtb] Existing recon found; skipping. Use --recon to rerun."
+  fi
+fi
+
+PROMPT="COPILOT MODE. Read brief.md, recon-summary.md if present, notes.md, and only the relevant CPTS-Checklists section. FIRST persist every meaningful recon/enumeration result into notes.md before suggesting anything. The launcher already performs the bounded baseline recon; do not run additional target-facing commands unless I explicitly use RUN:. Recommend exactly one highest-value next action, explain why briefly, and wait for me. Use STATE, LOGGED, NEXT, WHY, EVIDENCE."
 
 cd "$LAB_DIR"
 
 echo
 echo "[labhtb] Starting OpenCode in: $LAB_DIR"
-echo "[labhtb] Mode: COPILOT — you execute, it remembers and guides"
+echo "[labhtb] Mode: AUTO RECON -> COPILOT"
 echo "[labhtb] Methodology: latest CPTS-Checklists"
 if [ -n "${LABHTB_MODEL:-}" ]; then
   echo "[labhtb] Model override: $LABHTB_MODEL"
