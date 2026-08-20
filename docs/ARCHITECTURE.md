@@ -101,7 +101,11 @@ The whole `labs/` directory is ignored by Git.
 
 ### brief.md
 
-Small engagement bootstrap file containing the initial target context. It is created once and preserved when the lab is resumed.
+Small engagement bootstrap file containing the initial target context, including target identity and optional username/password. It is local-only, created with restrictive permissions where supported, and can be edited later with:
+
+```bash
+./start.sh <lab-name> --edit
+```
 
 ### notes.md
 
