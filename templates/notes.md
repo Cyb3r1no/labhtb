@@ -7,13 +7,18 @@
 - Domain: UNKNOWN
 - Domain Controller: UNKNOWN
 - Account Context: UNKNOWN
+- Name Resolution: PENDING
 
 ## Fast-Start Progress
 - Fast all-port discovery: PENDING
+- Open TCP Ports: UNKNOWN
 - Targeted service scan: PENDING
 - Hostname/domain discovery: PENDING
 - /etc/hosts synchronized: PENDING
 - Supplied credential validation: PENDING
+- SMB Auth: UNTESTED
+- WinRM Auth: UNTESTED
+- Last Meaningful Result: None yet
 
 ## Credentials / Hashes / Tickets
 - NONE
