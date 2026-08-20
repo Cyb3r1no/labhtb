@@ -39,7 +39,7 @@ Only the password prompt is hidden while typing.
 Fresh discovery should use the built-in helper:
 
 ```bash
-bash LabTools/fast-scan.sh <TARGET_IP> scans
+./LabTools/fast-scan.sh <TARGET_IP> scans
 ```
 
 It performs:
@@ -77,7 +77,7 @@ If DOMAIN/HOSTNAME are supplied when the lab starts, `start.sh` creates an idemp
 If names are discovered later, the copilot uses:
 
 ```bash
-bash LabTools/sync-hosts.sh authority 10.10.11.X dc.authority.htb dc authority.htb
+./LabTools/sync-hosts.sh authority 10.10.11.X dc.authority.htb dc authority.htb
 ```
 
 The helper owns only the `# labhtb:<lab-name>` line, so repeated updates replace the lab mapping instead of producing duplicates. It verifies each supplied name with `getent hosts` and then enumeration continues immediately.
