@@ -5,23 +5,27 @@
 From the repository root:
 
 ```bash
-bash start.sh <lab-name>
+./start.sh <lab-name>
 ```
 
 Example:
 
 ```bash
-bash start.sh authority
+./start.sh authority
 ```
 
-On the first run for that lab, the launcher asks for:
+If no lab name is provided, the launcher asks for one.
+
+On the first run for that lab, it asks only for:
 
 - TARGET IP
 - DOMAIN (or UNKNOWN)
 - HOSTNAME (or UNKNOWN)
 - CREDENTIALS (or NONE)
 
-It then creates a private runtime workspace under:
+Credentials are entered without terminal echo and stored only in the ignored local lab workspace.
+
+The launcher creates:
 
 ```text
 labs/<lab-name>/
@@ -40,13 +44,33 @@ The entire `labs/` directory is ignored by Git.
 
 `start.sh` calls `setup.sh`, which:
 
-1. Verifies Git and OpenCode are available.
+1. Verifies Git and OpenCode are installed.
 2. Clones `imjustBuck/CPTS-Checklists` on first use.
-3. Fast-forward updates that methodology on future launches.
-4. Opens OpenCode inside the selected lab workspace.
-5. Supplies a short startup prompt telling OpenCode to resume from local state.
+3. Fast-forward updates the methodology on later launches.
+4. Creates or resumes the selected lab workspace.
+5. Opens OpenCode from inside that workspace.
+6. Supplies a short bootstrap prompt to resume from local state.
 
-Because OpenCode discovers `AGENTS.md` and project skills by traversing upward to the Git worktree, lab directories inherit the project instructions and `.opencode/skills/` automatically.
+OpenCode discovers the repository `AGENTS.md`, `opencode.json`, and project skills by walking upward from the lab directory to the Git root. This behavior is supported by OpenCode's project rule/config/skill discovery model.
+
+## First lab
+
+```bash
+git clone https://github.com/Cyb3r1no/labhtb.git
+cd labhtb
+./start.sh authority
+```
+
+Example answers:
+
+```text
+TARGET IP: 10.10.11.222
+DOMAIN [UNKNOWN]: authority.htb
+HOSTNAME [UNKNOWN]: dc
+CREDENTIALS [NONE]:
+```
+
+OpenCode then starts with the current lab brief and state already available.
 
 ## Operator loop
 
@@ -55,7 +79,7 @@ During a lab:
 ```text
 Run a check
    ↓
-Give OpenCode the output
+Give OpenCode the result/output
    ↓
 STATE — what changed
 NEXT — only 1–3 logical actions
@@ -65,22 +89,57 @@ EVIDENCE — what to preserve
 notes.md / commands.txt / report-notes.md are updated
 ```
 
+The goal is not to let the model run a full autonomous attack. The model keeps methodology and documentation organized while the operator remains responsible for the engagement decisions.
+
+## Resuming a lab
+
+Use the same lab name:
+
+```bash
+./start.sh authority
+```
+
+Existing `brief.md`, notes, commands, evidence, and report notes are preserved. The upstream methodology is updated before OpenCode launches.
+
 ## Cheap-model usage
 
-To force a configured OpenCode model for the session:
+To override the configured OpenCode model for one launch:
 
 ```bash
-LABHTB_MODEL='provider/model' bash start.sh authority
+LABHTB_MODEL='provider/model' ./start.sh authority
 ```
 
-Keep a cheap/fast model for routine checklist tracking and state updates. Switch to a stronger model only when attack-path reasoning becomes genuinely difficult.
+Use `opencode models` to see the exact provider/model identifiers available in your OpenCode installation.
 
-## Returning to a lab
+Recommended strategy:
 
-Run the same command again:
+```text
+Routine state/checklist/report updates → cheap/fast model
+Complex attack-path reasoning          → stronger model temporarily
+```
+
+## If the domain or hostname is unknown
+
+Leave the value blank or use `UNKNOWN`.
+
+The methodology copilot should discover and confirm it during enumeration before suggesting an `/etc/hosts` change. `AGENTS.md` explicitly tells the model not to guess host resolution data.
+
+## Evidence discipline
+
+When a result matters for the final report:
+
+1. Preserve raw output when useful.
+2. Capture a clear screenshot if visual proof helps.
+3. Put report evidence under `evidence/` with descriptive sequential names.
+4. Reference that evidence in `report-notes.md`.
+5. Keep noisy/unprocessed outputs in `raw/` until they become useful.
+
+## Updating only the methodology
+
+You can run:
 
 ```bash
-bash start.sh authority
+./setup.sh
 ```
 
-Existing `brief.md`, notes, commands, evidence and report notes are preserved. The methodology repository is updated before OpenCode opens.
+This updates `.cpts-checklists/` without starting a specific lab.
