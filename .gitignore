@@ -1,0 +1,23 @@
+# Runtime CPTS methodology copy
+.cpts-checklists/
+
+# Per-lab runtime workspaces
+labs/
+
+# Secrets / tickets / loot
+.env
+*.ccache
+*.kirbi
+*.keytab
+*.pfx
+*.pem
+*.key
+*.hashes
+*.loot
+loot/
+output/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
