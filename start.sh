@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_NAME="${1:-}"
+EDIT_MODE="${2:-}"
 
 if [ -z "$LAB_NAME" ]; then
   read -r -p "Lab name: " LAB_NAME
@@ -10,6 +11,12 @@ fi
 
 if [[ ! "$LAB_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "[labhtb] Lab name may contain only letters, numbers, dot, underscore and dash." >&2
+  exit 1
+fi
+
+if [ -n "$EDIT_MODE" ] && [ "$EDIT_MODE" != "--edit" ]; then
+  echo "[labhtb] Unknown option: $EDIT_MODE" >&2
+  echo "Usage: ./start.sh <lab-name> [--edit]" >&2
   exit 1
 fi
 
@@ -40,12 +47,14 @@ if [ ! -f "$LAB_DIR/brief.md" ]; then
 
   read -r -p "DOMAIN [UNKNOWN]: " DOMAIN
   read -r -p "HOSTNAME [UNKNOWN]: " HOSTNAME
-  read -r -s -p "CREDENTIALS [NONE]: " CREDENTIALS
+  read -r -p "USERNAME [NONE]: " USERNAME
+  read -r -s -p "PASSWORD [NONE] (input hidden): " PASSWORD
   echo
 
   DOMAIN="${DOMAIN:-UNKNOWN}"
   HOSTNAME="${HOSTNAME:-UNKNOWN}"
-  CREDENTIALS="${CREDENTIALS:-NONE}"
+  USERNAME="${USERNAME:-NONE}"
+  PASSWORD="${PASSWORD:-NONE}"
 
   cat > "$LAB_DIR/brief.md" <<EOF
 # Lab Brief
@@ -54,10 +63,14 @@ if [ ! -f "$LAB_DIR/brief.md" ]; then
 - Target IP: $TARGET_IP
 - Domain: $DOMAIN
 - Hostname: $HOSTNAME
-- Credentials: $CREDENTIALS
+- Username: $USERNAME
+- Password: $PASSWORD
 - Scope: Authorized Hack The Box / CPTS practice lab
 EOF
 
+  chmod 600 "$LAB_DIR/brief.md"
+elif [ "$EDIT_MODE" = "--edit" ]; then
+  "${EDITOR:-nano}" "$LAB_DIR/brief.md"
   chmod 600 "$LAB_DIR/brief.md"
 fi
 
