@@ -19,6 +19,14 @@ mkdir -p "$LAB_DIR/scans" "$LAB_DIR/raw"
 ALL="$LAB_DIR/scans/nmap-allports"
 SERVICES="$LAB_DIR/scans/nmap-services"
 SUMMARY="$LAB_DIR/recon-summary.md"
+COMMANDS="$LAB_DIR/commands.txt"
+MIN_RATE="${LABHTB_MIN_RATE:-3000}"
+
+touch "$COMMANDS"
+
+log_cmd() {
+  printf '[AUTO RECON] %s\n' "$1" >> "$COMMANDS"
+}
 
 run_bounded() {
   if command -v timeout >/dev/null 2>&1; then
@@ -34,7 +42,8 @@ printf '[labhtb] Target: %s\n' "$TARGET"
 
 # Stage 1: discover TCP ports quickly.
 echo "[labhtb] 1/4 Fast TCP port discovery..."
-nmap -Pn -n -p- --min-rate "${LABHTB_MIN_RATE:-3000}" -T4 "$TARGET" -oA "$ALL"
+log_cmd "nmap -Pn -n -p- --min-rate $MIN_RATE -T4 $TARGET -oA scans/nmap-allports"
+nmap -Pn -n -p- --min-rate "$MIN_RATE" -T4 "$TARGET" -oA "$ALL"
 
 OPEN_PORTS="$({
   awk -F'Ports: ' '/Ports: / { print $2 }' "$ALL.gnmap" \
@@ -61,6 +70,7 @@ echo "[labhtb] Open TCP ports: $OPEN_PORTS"
 
 # Stage 2: service/version/default-script scan only on confirmed ports.
 echo "[labhtb] 2/4 Targeted service enumeration..."
+log_cmd "nmap -Pn -n -sC -sV -T4 -p$OPEN_PORTS $TARGET -oA scans/nmap-services"
 nmap -Pn -n -sC -sV -T4 -p"$OPEN_PORTS" "$TARGET" -oA "$SERVICES"
 
 SMB_RESULT="not run"
@@ -76,6 +86,8 @@ has_port() {
 # Stage 3: one bounded SMB identity/null-session check when SMB exists.
 if has_port 445 && command -v nxc >/dev/null 2>&1; then
   echo "[labhtb] 3/4 SMB baseline enumeration with NetExec..."
+  log_cmd "nxc smb $TARGET"
+  log_cmd "nxc smb $TARGET -u '' -p '' --shares"
   {
     echo '### NetExec SMB identity'
     run_bounded 45 nxc smb "$TARGET" || true
@@ -98,6 +110,7 @@ done
 
 if [ -n "$LDAP_PORTS" ]; then
   echo "[labhtb] 4/4 LDAP RootDSE enumeration..."
+  log_cmd "nmap -Pn -n -p$LDAP_PORTS --script ldap-rootdse $TARGET -oN raw/ldap-rootdse.txt"
   run_bounded 60 nmap -Pn -n -p"$LDAP_PORTS" --script ldap-rootdse "$TARGET" -oN "$LAB_DIR/raw/ldap-rootdse.txt" || true
   LDAP_RESULT="raw/ldap-rootdse.txt"
 else
