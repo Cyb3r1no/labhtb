@@ -89,8 +89,21 @@ labs/<lab-name>/
 2. Clones or fast-forward updates the latest CPTS-Checklists copy.
 3. Creates or resumes the selected lab workspace.
 4. Preserves existing notes, evidence, commands, and report material.
-5. Starts OpenCode with project instructions and auto-approved permissions.
-6. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
+5. Requests `sudo` authorization once and keeps the sudo timestamp active while OpenCode is running.
+6. Starts OpenCode with project instructions and auto-approved permissions.
+7. Keeps responses focused on `STATE`, `NEXT`, `WHY`, and `EVIDENCE`.
+
+## Permissions
+
+`opencode.json` sets OpenCode permissions to `allow`, and `start.sh` launches OpenCode with `--auto`. This removes normal OpenCode approval prompts during the authorized lab workflow.
+
+For commands that require local root privileges, `start.sh` validates `sudo` once at startup and periodically refreshes the sudo timestamp during that OpenCode session. OpenCode itself still runs as the normal Kali user, so project ownership stays clean while commands such as `/etc/hosts` edits, packet-level operations, or other privileged local actions can use `sudo` when required.
+
+To disable the sudo-session behavior for one launch:
+
+```bash
+LABHTB_SUDO=0 ./start.sh authority
+```
 
 ## Editing an existing lab
 
@@ -131,10 +144,10 @@ A cheap/fast model is usually enough for state tracking, checklist coverage, and
 - give at most 1–3 next actions,
 - explain why those actions are next,
 - update notes and reporting continuously,
+- use `sudo` only for individual commands that genuinely need local elevation,
+- avoid long-lived automated interactive shells that can hang the session,
 - avoid inventing evidence or results,
 - avoid autonomous exploitation unless explicitly requested.
-
-`opencode.json` currently uses auto-allow permissions for a low-friction lab workflow.
 
 ## Documentation
 
