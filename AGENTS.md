@@ -81,6 +81,17 @@ Use this concise response format:
 - Do not perform autonomous exploitation unless the operator explicitly asks to proceed.
 - Never invent evidence, commands, findings or screenshots.
 
+## Execution and privilege rules
+
+- OpenCode permissions are auto-approved for this authorized lab workspace.
+- The launcher pre-authorizes a normal-user `sudo` session when available, so use `sudo` directly for individual commands that genuinely require elevated local privileges.
+- Do not restart or relaunch OpenCode itself as root.
+- Keep project and lab files owned by the normal Kali user.
+- Prefer normal-user execution for tools that do not require elevation.
+- Avoid long-lived interactive shells during automated checks (`evil-winrm`, `ssh`, `psexec`, interactive database shells, etc.).
+- For automated validation, prefer a one-shot command, a non-interactive mode, or a bounded timeout.
+- Once interactive access is confirmed, record the foothold and provide the operator with the manual shell command when appropriate instead of leaving an automated interactive session hanging.
+
 ## AD reassessment triggers
 
 After obtaining new domain credentials or privileges, reassess only what is relevant:
