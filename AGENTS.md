@@ -17,34 +17,51 @@ Use the current lab state and the latest local `CPTS-Checklists/` copy as the pr
 When OpenCode starts inside `labs/<lab-name>/`:
 
 1. Read `brief.md` and `notes.md` first.
-2. Confirm `CPTS-Checklists/` is available in the current lab workspace.
-3. Read only the checklist files relevant to the current phase; lazy-load rather than reading the whole repository.
+2. Confirm `CPTS-Checklists/` and `LabTools/` are available.
+3. Read only checklist files relevant to the current phase; lazy-load rather than reading the whole repository.
 4. Use the available project skills only when relevant.
 5. Begin immediately from the current state. Do not ask setup questions whose answers already exist in `brief.md` or `notes.md`.
-6. Optimize the first few minutes for fast target identity, open-port discovery, hostname/domain discovery, and credential validation.
+6. Optimize the first few minutes for target identity, open ports, hostname/domain/DC discovery, correct name resolution, and credential validation.
 
 ## Fast initial enumeration
 
-Do not start with a slow all-ports service/script scan.
+For a fresh target, prefer the project helper instead of inventing a long Nmap command:
 
-Preferred initial sequence:
+`bash LabTools/fast-scan.sh <TARGET_IP> scans`
 
-1. Fast all-port discovery first, for example:
-   `nmap -Pn -n -p- --min-rate 3000 -T4 <TARGET> -oA scans/nmap-allports`
-2. Extract confirmed open ports.
-3. Run targeted service/version/default-script enumeration only against those ports:
-   `nmap -Pn -n -sC -sV -p<OPEN_PORTS> -T4 <TARGET> -oA scans/nmap-services`
-4. Begin protocol-specific enumeration as soon as useful services are confirmed; do not wait for unrelated slow checks to finish.
-5. Prefer `-oA` for Nmap artifacts so normal, XML, and grepable output are preserved together.
+The helper performs:
+
+1. Fast all-TCP-port discovery with `-Pn -n -p- --min-rate 3000 -T4`.
+2. Extraction of confirmed open TCP ports.
+3. Targeted `-sC -sV` only against those open ports.
+4. `-oA` output into `scans/`.
 
 Do not combine `-p-` with `-sC -sV` for the initial scan unless there is a specific reason.
+
+Begin protocol-specific enumeration as soon as useful services are confirmed; do not spend minutes proving unrelated edge cases first.
+
+## Fast-path decision rules
+
+Use the shortest reliable path to the next useful fact:
+
+- **No services known** → run `bash LabTools/fast-scan.sh <IP> scans`.
+- **SMB/445 exposed** → use NetExec early for hostname/domain/signing/account validation and shares when credentials allow it.
+- **Kerberos/88 + LDAP/389/636/3268/3269** → prioritize confirming domain and DC identity, then correct name resolution before AD tooling.
+- **HTTP(S) redirect or certificate reveals a hostname/domain** → confirm it, sync `/etc/hosts`, then enumerate the name-based target instead of only the IP.
+- **WinRM/5985/5986 exposed** → treat it as a service, not proof of access. Validate credentials and WinRM authorization with NetExec before Evil-WinRM troubleshooting.
+- **Supplied credentials exist** → determine local-vs-domain context and validate them early; do not repeatedly try the same credentials against every protocol without interpreting the result.
+- **New hostname/domain/FQDN appears** → update state and `/etc/hosts` immediately, then continue.
+- **New credentials/privilege/session appears** → reassess only the relevant services and AD paths rather than restarting enumeration from zero.
 
 ## State management
 
 Maintain `notes.md` as the concise source of truth for:
 
 - Target IP, hostname, FQDN, domain and DC
-- Discovered hosts and services
+- `/etc/hosts` / name-resolution status
+- Confirmed open TCP ports and discovered services
+- Credential account context: local/domain/unknown
+- Authentication results by protocol when relevant
 - Credentials / hashes / tickets obtained
 - Current foothold and privileges
 - Users, groups, shares and interesting files
@@ -54,6 +71,8 @@ Maintain `notes.md` as the concise source of truth for:
 - Attack-path hypotheses
 - Completed methodology checks
 - Pending methodology checks
+
+If an older `notes.md` is missing these fields, add them when they become relevant instead of recreating the file.
 
 Runtime lab files live under `labs/` and are intentionally excluded from Git.
 
@@ -105,11 +124,13 @@ When supplied credentials fail or behave differently between services, do not ju
 Use this order:
 
 1. Confirm whether the account is local or domain-backed from available evidence.
-2. Validate the same credentials against an appropriate baseline protocol such as SMB with NetExec when SMB is exposed.
-3. Validate protocol-specific authorization separately, e.g. WinRM with NetExec before troubleshooting Evil-WinRM behavior.
-4. Distinguish invalid credentials from valid credentials that lack access to a particular service.
-5. Only investigate JEA, custom WinRM configuration, raw WSMan/SOAP behavior, or other unusual cases when there is evidence pointing there.
-6. Do not write custom protocol requests when standard tooling can answer the question faster.
+2. When SMB is exposed, use NetExec as the preferred baseline credential/context check.
+3. For a local account, use the appropriate local-auth mode when the tool supports it.
+4. For a domain account, use the confirmed domain/hostname context and correct name resolution.
+5. Validate protocol-specific authorization separately, e.g. WinRM with NetExec before troubleshooting Evil-WinRM behavior.
+6. Distinguish invalid credentials from valid credentials that lack access to a particular service.
+7. Only investigate JEA, custom WinRM configuration, raw WSMan/SOAP behavior, or other unusual cases when there is evidence pointing there.
+8. Do not write custom protocol requests when standard tooling can answer the question faster.
 
 Never label a target as JEA, constrained endpoint, custom shell, or similar based only on a generic WinRM error.
 
@@ -169,18 +190,15 @@ Load only the skill needed for the current task.
 
 Treat hostname/domain discovery as an early setup task because Kerberos, LDAP, web virtual hosts, WinRM, SMB tooling, and AD enumeration often depend on correct name resolution.
 
-When a hostname, FQDN, or domain is confirmed by scan/banner/SMB/LDAP/Kerberos/DNS evidence:
+When a hostname, FQDN, or domain is confirmed by scan/banner/SMB/LDAP/Kerberos/DNS/certificate evidence:
 
-1. Immediately update `notes.md` and `brief.md` with the confirmed values when appropriate.
-2. Ensure `/etc/hosts` contains the target IP mapped to the confirmed names.
-3. Use the pre-authorized `sudo` session when required.
-4. Make the update idempotent: do not create duplicate mappings for the same IP/name pair.
-5. If an older labhtb mapping for the same target IP is stale, replace it rather than appending conflicting lines.
-6. Prefer a useful mapping such as:
-   `<IP> <FQDN> <HOSTNAME> <DOMAIN>`
-   but include only names actually confirmed.
-7. Verify resolution with `getent hosts <name>` after the change.
-8. Continue enumeration immediately after updating resolution; do not stop merely to report that `/etc/hosts` changed.
+1. Update `notes.md` and `brief.md` with confirmed values when appropriate.
+2. Use the project helper immediately:
+   `bash LabTools/sync-hosts.sh <LAB_NAME> <TARGET_IP> <CONFIRMED_NAME> [MORE_CONFIRMED_NAMES...]`
+3. Include useful confirmed aliases such as FQDN, hostname, and domain when they genuinely map to the target.
+4. The helper owns only the marker line `# labhtb:<LAB_NAME>`, so repeated runs replace the labhtb mapping instead of creating duplicates.
+5. Verify the helper output / `getent hosts` result.
+6. Continue enumeration immediately after resolution is fixed; do not stop merely to report the hosts-file change.
 
 Do not guess a domain or hostname. Discovery must be evidence-backed.
 
