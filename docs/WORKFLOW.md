@@ -37,6 +37,7 @@ labs/<lab-name>/
 ├── scans/
 ├── evidence/
 ├── raw/
+├── LabTools -> ../../scripts
 └── CPTS-Checklists -> ../../.cpts-checklists
 ```
 
@@ -50,9 +51,10 @@ The entire `labs/` directory is ignored by Git.
 2. Creates or resumes the lab workspace.
 3. Seeds supplied target IP/domain/hostname into state for a new lab.
 4. Creates `scans/`, `raw/`, and `evidence/`.
-5. Requests sudo once and refreshes its timestamp while OpenCode is running.
-6. If DOMAIN/HOSTNAME are already known, synchronizes them into `/etc/hosts` before OpenCode starts.
-7. Starts OpenCode in fast-start/state-driven mode.
+5. Exposes reusable helpers through `LabTools/`.
+6. Requests sudo once and refreshes its timestamp while OpenCode is running.
+7. If DOMAIN/HOSTNAME are already known, synchronizes them into `/etc/hosts` before OpenCode starts.
+8. Starts OpenCode in fast-start/state-driven mode.
 
 OpenCode discovers `AGENTS.md`, `opencode.json`, and `.opencode/skills/` by walking upward to the Git root.
 
@@ -60,47 +62,72 @@ OpenCode discovers `AGENTS.md`, `opencode.json`, and `.opencode/skills/` by walk
 
 For a fresh target, optimize for the shortest reliable path to useful facts.
 
-### Phase 1 — fast port discovery
+### Phase 1 + 2 — discovery helper
+
+Use:
 
 ```bash
-nmap -Pn -n -p- --min-rate 3000 -T4 <TARGET> -oA scans/nmap-allports
+bash LabTools/fast-scan.sh <TARGET_IP> scans
+```
+
+The helper performs:
+
+```text
+fast all-TCP-port discovery
+        ↓
+extract confirmed open ports
+        ↓
+targeted -sC -sV only on those ports
+        ↓
+preserve -oA artifacts
+```
+
+Artifacts are stored as:
+
+```text
+scans/nmap-allports.{nmap,gnmap,xml}
+scans/nmap-services.{nmap,gnmap,xml}
+```
+
+The default minimum rate is `3000`. Override when needed:
+
+```bash
+LABHTB_MIN_RATE=1500 ./start.sh authority
 ```
 
 Do not make `-p- -sC -sV` the default first scan.
 
-### Phase 2 — targeted service scan
-
-After extracting confirmed open ports:
-
-```bash
-nmap -Pn -n -sC -sV -p<OPEN_PORTS> -T4 <TARGET> -oA scans/nmap-services
-```
-
-This preserves normal/XML/grepable output while avoiding full service detection across 65,535 ports.
-
 ### Phase 3 — identity and name resolution
 
-As soon as scan/banner/SMB/LDAP/Kerberos/DNS evidence confirms hostname/domain/FQDN:
+As soon as scan/banner/SMB/LDAP/Kerberos/DNS/TLS certificate/HTTP redirect evidence confirms hostname/domain/FQDN:
 
 1. update `notes.md`,
 2. keep `brief.md` current when useful,
-3. update `/etc/hosts` immediately,
-4. verify using `getent hosts`,
+3. run the host helper immediately,
+4. verify the helper output / `getent hosts`,
 5. continue enumeration without waiting for a separate operator confirmation.
 
-`start.sh` uses a lab-specific managed marker when names are known at startup:
+Example:
 
-```text
-10.10.11.X dc.authority.htb dc authority.htb # labhtb:authority
+```bash
+bash LabTools/sync-hosts.sh authority 10.10.11.222 dc.authority.htb dc authority.htb
 ```
 
-The next run replaces that managed line instead of appending duplicates.
+Only confirmed names belong in the command.
+
+The helper manages a lab-specific marker:
+
+```text
+10.10.11.222 dc.authority.htb dc authority.htb # labhtb:authority
+```
+
+Repeated runs replace that managed line instead of appending duplicate labhtb mappings.
 
 ### Phase 4 — credential validation
 
 If credentials are supplied, determine local/domain context and validate them using normal tooling before investigating edge cases.
 
-Example reasoning chain:
+Preferred reasoning chain:
 
 ```text
 account context
@@ -118,7 +145,18 @@ Separate these states clearly:
 - valid credentials but no access to this service,
 - successful protocol access.
 
+For a confirmed local account, use the appropriate local-auth mode when supported. For domain accounts, fix name resolution first and use confirmed domain context.
+
 Do not jump from a generic Evil-WinRM error directly to JEA or hand-written SOAP requests.
+
+## Fast service pivots
+
+When the targeted scan confirms useful services:
+
+- **445/SMB** → NetExec early for hostname/domain/signing/account validation/shares.
+- **88 + LDAP ports** → confirm domain/DC and `/etc/hosts` before AD tooling.
+- **HTTP(S) hostname redirect/certificate** → sync the name before web enumeration.
+- **5985/5986 WinRM** → validate authorization first; open port alone does not mean shell access.
 
 ## Operator loop
 
