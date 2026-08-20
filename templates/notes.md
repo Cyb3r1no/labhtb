@@ -8,6 +8,14 @@
 - Domain Controller: UNKNOWN
 - Name Resolution: UNKNOWN
 
+## Automatic Recon
+- Status: PENDING
+- Open TCP Ports: UNKNOWN
+- Service Scan: PENDING
+- SMB Baseline: PENDING / NOT APPLICABLE
+- LDAP RootDSE: PENDING / NOT APPLICABLE
+- Recon Summary: recon-summary.md
+
 ## Credentials / Hashes / Tickets
 - NONE
 
@@ -59,4 +67,5 @@
 
 ## Session Rule
 - Persist every meaningful result here before recommending the next action.
+- Automatic recon is bounded; after it finishes, continue in Copilot mode.
 - Do not repeat completed checks unless new information changes their value.
