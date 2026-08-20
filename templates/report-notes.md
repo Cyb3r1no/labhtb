@@ -1,36 +1,34 @@
 # CPTS Report Notes
 
 ## Attack Path Timeline
+- Initial discovery: pending
 
-Record only confirmed milestones:
-
-1. Initial discovery — pending
+Add confirmed milestones as they happen. Do not reconstruct them from memory at the end.
 
 ## Findings
 
-No findings recorded yet.
+For each report-worthy finding:
 
-For each finding use:
-
-### Finding — <title>
+### <Finding title>
 - Affected host/object:
-- Discovery:
+- Discovery method:
 - Command(s):
 - Evidence:
-- Validation / exploitation:
+- Validation/exploitation summary:
 - Impact:
 - Remediation:
 - Missing proof/screenshots:
 
-## Missing Evidence / Screenshots
+## Access / Privilege Milestones
+- None yet
 
-- None recorded yet.
+## Missing Evidence
+- None yet
 
-## Final Review Checklist
-
-- [ ] Attack path can be reconstructed from notes
+## Final Review
+- [ ] Attack path can be reconstructed from the step log
 - [ ] Important commands are recorded
-- [ ] Findings have evidence references
-- [ ] Privilege/access changes have before/after proof
-- [ ] Remediation is present for each reportable finding
-- [ ] No claim depends on evidence that was not actually captured
+- [ ] Credentials and their sources are clear
+- [ ] Findings reference real evidence
+- [ ] Privilege/access changes have proof
+- [ ] Reportable findings include impact and remediation
