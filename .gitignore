@@ -1,8 +1,9 @@
-# Runtime CPTS methodology copy
+# Runtime methodology / lab work
 .cpts-checklists/
-
-# Per-lab runtime workspaces
 labs/
+
+# Operator's personal CPTS notebook
+cpts-notes.md
 
 # Secrets / tickets / loot
 .env
