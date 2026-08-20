@@ -2,28 +2,28 @@
 
 A simple OpenCode copilot for authorized Hack The Box / CPTS practice labs.
 
-The idea is intentionally small:
+The workflow is now intentionally split into two parts:
 
-**You test → OpenCode records → OpenCode gives one next step → you continue**
+**AUTO RECON → COPILOT**
+
+The goal is to save time on the boring beginning of a lab without letting OpenCode turn into an autonomous pentest agent.
 
 `labhtb` uses the latest upstream [`imjustBuck/CPTS-Checklists`](https://github.com/imjustBuck/CPTS-Checklists) as the methodology source without copying it into this repository.
 
-## What labhtb is
+## What happens automatically
 
-It is a **CPTS methodology copilot**.
+On the first launch of a lab, `start.sh` runs one bounded recon/enumeration pass before OpenCode starts.
 
-It helps you:
+It performs:
 
-- remember what has already been tested,
-- keep credentials, hosts, services, access, and attack paths organized,
-- mark completed/attempted methodology steps immediately,
-- record commands as you go,
-- maintain report notes while the lab is still active,
-- decide the single highest-value next action.
+1. Fast TCP all-port discovery.
+2. Targeted `-sC -sV` only against confirmed open ports.
+3. NetExec SMB identity + anonymous-share baseline when 445 is open and `nxc` is installed.
+4. LDAP RootDSE baseline when 389/636 is open.
+5. Saves the results locally.
+6. Stops.
 
-It is **not** an autonomous pentest agent.
-
-By default OpenCode does not run scans or attack commands for you.
+It does **not** automatically perform authenticated enumeration, spraying, exploitation, privilege escalation, lateral movement, or tool chaining.
 
 ## Quick start
 
@@ -33,7 +33,7 @@ cd labhtb
 ./start.sh authority
 ```
 
-On the first launch for a lab:
+On the first launch:
 
 ```text
 TARGET IP: 10.10.11.X
@@ -43,27 +43,70 @@ USERNAME [NONE]:
 PASSWORD [NONE]:
 ```
 
-Then OpenCode opens in **COPILOT mode**.
-
-## Normal workflow
+Then the flow is:
 
 ```text
-You run a command
-        ↓
-Give OpenCode the command/output
-        ↓
-OpenCode immediately updates local state
-        ↓
-OpenCode gives ONE next action
-        ↓
-You run it
-        ↓
-repeat
+start.sh
+   ↓
+AUTO RECON
+   ↓
+recon-summary.md + scans/ + raw/
+   ↓
+OpenCode reads and logs the results
+   ↓
+COPILOT gives ONE highest-value next action
+   ↓
+you execute it
+   ↓
+OpenCode logs the result immediately
+   ↓
+next action
 ```
 
-Every meaningful result should be persisted before the next recommendation.
+## What AUTO RECON saves
 
-OpenCode responds with:
+Each lab has a private local workspace:
+
+```text
+labs/<lab-name>/
+├── brief.md
+├── recon-summary.md
+├── notes.md
+├── commands.txt
+├── report-notes.md
+├── scans/
+├── raw/
+├── evidence/
+└── CPTS-Checklists -> ../../.cpts-checklists
+```
+
+Typical recon artifacts:
+
+```text
+scans/nmap-allports.nmap
+scans/nmap-services.nmap
+raw/nxc-smb-baseline.txt
+raw/ldap-rootdse.txt
+```
+
+Only files relevant to the exposed services are created.
+
+The entire `labs/` directory is ignored by Git.
+
+## COPILOT mode
+
+After baseline recon finishes, OpenCode becomes the methodology assistant.
+
+For every meaningful result it should first update:
+
+- `notes.md`
+- `commands.txt`
+- `report-notes.md` when relevant
+- methodology progress (`DONE`, `ATTEMPTED`, `BLOCKED`, `PENDING`)
+
+Only after saving the state should it give the next step.
+
+Normal response format:
 
 ```text
 STATE
@@ -73,57 +116,35 @@ WHY
 EVIDENCE
 ```
 
-`NEXT` should normally contain only one action or one command.
+`NEXT` should normally contain **one action only**.
 
-## What gets saved
+## Re-run recon
 
-Each lab has its own local ignored workspace:
+Recon runs once per lab by default.
 
-```text
-labs/<lab-name>/
-├── brief.md
-├── notes.md
-├── commands.txt
-├── report-notes.md
-├── evidence/
-└── CPTS-Checklists -> ../../.cpts-checklists
-```
-
-### `notes.md`
-Current state plus completed, attempted, blocked, and pending methodology checks.
-
-### `commands.txt`
-Important commands in chronological order.
-
-### `report-notes.md`
-Report-worthy findings are recorded while you work instead of being reconstructed at the end.
-
-### `evidence/`
-Screenshots and proof for the final report.
-
-The entire `labs/` directory is ignored by Git.
-
-## CPTS-Checklists updates
-
-`setup.sh` automatically clones the methodology on first use and fast-forward updates it on later launches.
-
-You can update it manually with:
+To deliberately run the bounded baseline again:
 
 ```bash
-./setup.sh
+./start.sh authority --recon
 ```
 
-## If you want OpenCode to execute one thing
+To skip automatic recon for one launch:
 
-Use an explicit `RUN:` request inside OpenCode, for example:
+```bash
+LABHTB_RECON=0 ./start.sh authority
+```
+
+## If you want OpenCode to execute one command
+
+Use `RUN:` inside OpenCode:
 
 ```text
 RUN: nxc smb 10.10.11.10 -u user -p 'pass' --shares
 ```
 
-OpenCode should execute only that requested action, save the result, return to COPILOT mode, and stop after recommending one next step.
+It should execute only that action, save the result, return to Copilot mode, and stop after recommending one next step.
 
-Shell execution is configured to require approval, so normal methodology guidance and file logging stay low-friction while target-facing execution remains deliberate.
+Shell execution remains approval-gated so the model cannot silently start another enumeration chain.
 
 ## Resume a lab
 
@@ -131,7 +152,7 @@ Shell execution is configured to require approval, so normal methodology guidanc
 ./start.sh authority
 ```
 
-Existing state, commands, report notes, and evidence are preserved.
+If recon already completed, it is skipped and OpenCode resumes from existing state.
 
 ## Edit target information
 
@@ -141,15 +162,28 @@ Existing state, commands, report notes, and evidence are preserved.
 
 This opens the local `brief.md` and then resumes the lab.
 
+## CPTS methodology
+
+`CPTS-Checklists` is used as a **decision guide**, not a list of commands to execute blindly.
+
+The copilot should answer:
+
+- What have we already checked?
+- What did we learn?
+- What is still relevant?
+- What is the single best next check?
+
+When new credentials, hosts, privileges, trusts, or sessions appear, it should reassess only the relevant paths instead of restarting enumeration from zero.
+
 ## Status
 
-Inside OpenCode simply say:
+Inside OpenCode:
 
 ```text
 status
 ```
 
-The copilot should summarize current target identity, access, credentials, findings, completed work, strongest lead, and the highest-value pending check without running anything.
+The copilot should summarize target identity, access, valid credentials, important findings, completed checks, current best lead, and the highest-value pending step without running anything.
 
 ## Model selection
 
@@ -159,11 +193,11 @@ Use the model already selected in OpenCode, or override one launch:
 LABHTB_MODEL='provider/model' ./start.sh authority
 ```
 
-A cheap/fast model is usually enough for state tracking, checklist coverage, and report-note maintenance. Switch to a stronger model only when attack-path reasoning becomes difficult.
+A cheap/fast model is usually enough for state tracking, checklist coverage, and report notes. Switch to a stronger model only for difficult attack-path reasoning.
 
 ## Core rule
 
-**The operator tests. The copilot remembers, organizes, documents, and points to the next best step.**
+**Automation handles the repetitive baseline. You handle the engagement. The copilot remembers, documents, and guides.**
 
 ## Scope
 
