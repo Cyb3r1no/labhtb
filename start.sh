@@ -35,6 +35,11 @@ fi
 touch "$LAB_DIR/commands.txt"
 ln -sfn ../../.cpts-checklists "$LAB_DIR/CPTS-Checklists"
 
+# Remove the old autonomous-helper symlink from existing lab workspaces.
+if [ -L "$LAB_DIR/LabTools" ]; then
+  rm "$LAB_DIR/LabTools"
+fi
+
 if [ ! -f "$LAB_DIR/brief.md" ]; then
   echo
   echo "[labhtb] New lab: $LAB_NAME"
