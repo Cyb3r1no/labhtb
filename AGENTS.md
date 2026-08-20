@@ -21,6 +21,23 @@ When OpenCode starts inside `labs/<lab-name>/`:
 3. Read only the checklist files relevant to the current phase; lazy-load rather than reading the whole repository.
 4. Use the available project skills only when relevant.
 5. Begin immediately from the current state. Do not ask setup questions whose answers already exist in `brief.md` or `notes.md`.
+6. Optimize the first few minutes for fast target identity, open-port discovery, hostname/domain discovery, and credential validation.
+
+## Fast initial enumeration
+
+Do not start with a slow all-ports service/script scan.
+
+Preferred initial sequence:
+
+1. Fast all-port discovery first, for example:
+   `nmap -Pn -n -p- --min-rate 3000 -T4 <TARGET> -oA scans/nmap-allports`
+2. Extract confirmed open ports.
+3. Run targeted service/version/default-script enumeration only against those ports:
+   `nmap -Pn -n -sC -sV -p<OPEN_PORTS> -T4 <TARGET> -oA scans/nmap-services`
+4. Begin protocol-specific enumeration as soon as useful services are confirmed; do not wait for unrelated slow checks to finish.
+5. Prefer `-oA` for Nmap artifacts so normal, XML, and grepable output are preserved together.
+
+Do not combine `-p-` with `-sC -sV` for the initial scan unless there is a specific reason.
 
 ## State management
 
@@ -81,6 +98,21 @@ Use this concise response format:
 - Do not perform autonomous exploitation unless the operator explicitly asks to proceed.
 - Never invent evidence, commands, findings or screenshots.
 
+## Authentication and protocol validation
+
+When supplied credentials fail or behave differently between services, do not jump to exotic explanations.
+
+Use this order:
+
+1. Confirm whether the account is local or domain-backed from available evidence.
+2. Validate the same credentials against an appropriate baseline protocol such as SMB with NetExec when SMB is exposed.
+3. Validate protocol-specific authorization separately, e.g. WinRM with NetExec before troubleshooting Evil-WinRM behavior.
+4. Distinguish invalid credentials from valid credentials that lack access to a particular service.
+5. Only investigate JEA, custom WinRM configuration, raw WSMan/SOAP behavior, or other unusual cases when there is evidence pointing there.
+6. Do not write custom protocol requests when standard tooling can answer the question faster.
+
+Never label a target as JEA, constrained endpoint, custom shell, or similar based only on a generic WinRM error.
+
 ## Execution and privilege rules
 
 - OpenCode permissions are auto-approved for this authorized lab workspace.
@@ -135,13 +167,22 @@ Load only the skill needed for the current task.
 
 ## Host resolution
 
-When hostname/domain information is confirmed:
+Treat hostname/domain discovery as an early setup task because Kerberos, LDAP, web virtual hosts, WinRM, SMB tooling, and AD enumeration often depend on correct name resolution.
 
-- Keep `/etc/hosts` accurate for the current target where appropriate.
-- Avoid duplicate entries.
-- Do not guess a domain or hostname.
-- Before changing `/etc/hosts`, show the exact intended mapping.
-- Use sudo only when the operating system requires it.
+When a hostname, FQDN, or domain is confirmed by scan/banner/SMB/LDAP/Kerberos/DNS evidence:
+
+1. Immediately update `notes.md` and `brief.md` with the confirmed values when appropriate.
+2. Ensure `/etc/hosts` contains the target IP mapped to the confirmed names.
+3. Use the pre-authorized `sudo` session when required.
+4. Make the update idempotent: do not create duplicate mappings for the same IP/name pair.
+5. If an older labhtb mapping for the same target IP is stale, replace it rather than appending conflicting lines.
+6. Prefer a useful mapping such as:
+   `<IP> <FQDN> <HOSTNAME> <DOMAIN>`
+   but include only names actually confirmed.
+7. Verify resolution with `getent hosts <name>` after the change.
+8. Continue enumeration immediately after updating resolution; do not stop merely to report that `/etc/hosts` changed.
+
+Do not guess a domain or hostname. Discovery must be evidence-backed.
 
 ## Operator experience
 
@@ -151,3 +192,5 @@ The operator is studying and practicing methodology. Optimize for speed, clarity
 - Give at most 1–3 next actions.
 - Explain the decision, not just the command.
 - Keep the lab state updated so the operator does not have to remember everything.
+- Prefer the shortest reliable path to the next useful fact.
+- Avoid spending minutes proving edge cases before basic identity, ports, names, credentials, and access paths are established.
