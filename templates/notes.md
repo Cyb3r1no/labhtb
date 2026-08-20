@@ -6,6 +6,14 @@
 - FQDN: UNKNOWN
 - Domain: UNKNOWN
 - Domain Controller: UNKNOWN
+- Account Context: UNKNOWN
+
+## Fast-Start Progress
+- Fast all-port discovery: PENDING
+- Targeted service scan: PENDING
+- Hostname/domain discovery: PENDING
+- /etc/hosts synchronized: PENDING
+- Supplied credential validation: PENDING
 
 ## Credentials / Hashes / Tickets
 - NONE
@@ -45,3 +53,4 @@
 
 ## Session Notes
 - Keep this concise. Move report-worthy material to `report-notes.md`.
+- Do not repeat completed scans/checks unless new information changes their value.
