@@ -6,19 +6,7 @@
 - FQDN: UNKNOWN
 - Domain: UNKNOWN
 - Domain Controller: UNKNOWN
-- Account Context: UNKNOWN
-- Name Resolution: PENDING
-
-## Fast-Start Progress
-- Fast all-port discovery: PENDING
-- Open TCP Ports: UNKNOWN
-- Targeted service scan: PENDING
-- Hostname/domain discovery: PENDING
-- /etc/hosts synchronized: PENDING
-- Supplied credential validation: PENDING
-- SMB Auth: UNTESTED
-- WinRM Auth: UNTESTED
-- Last Meaningful Result: None yet
+- Name Resolution: UNKNOWN
 
 ## Credentials / Hashes / Tickets
 - NONE
@@ -29,7 +17,10 @@
 ## Discovered Services
 - None yet
 
-## Current Access / Foothold
+## Authentication / Access
+- None yet
+
+## Current Foothold / Privilege
 - None
 
 ## Users / Groups of Interest
@@ -44,18 +35,28 @@
 ## ADCS
 - Not checked
 
-## Interesting Findings
+## Findings
 - None yet
 
 ## Attack-Path Hypotheses
 - None yet
 
-## Completed Methodology Checks
+## Methodology Progress
+### DONE
 - None yet
 
-## Pending Methodology Checks
-- Determine from CPTS-Checklists
+### ATTEMPTED / BLOCKED
+- None yet
 
-## Session Notes
-- Keep this concise. Move report-worthy material to `report-notes.md`.
-- Do not repeat completed scans/checks unless new information changes their value.
+### PENDING
+- Determine from the relevant CPTS-Checklists section
+
+## Step Log
+- No steps recorded yet
+
+## Current Best Lead
+- None yet
+
+## Session Rule
+- Persist every meaningful result here before recommending the next action.
+- Do not repeat completed checks unless new information changes their value.
